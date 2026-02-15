@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.remote.webelement import WebElement
 
 
 BASE_URL = "https://webscraper.io/"
@@ -16,9 +17,9 @@ HOME_URL = urljoin(BASE_URL, "test-sites/e-commerce/more/")
 class Product:
     title: str
     description: str
-    price: float
-    rating: int
-    num_of_reviews: int
+    price: str
+    rating: str
+    num_of_reviews: str
 
 
 class Scraper:
@@ -78,6 +79,9 @@ class PageScraper:
         wait = WebDriverWait(self._driver, 5)
         while True:
             try:
+                current_count = len(
+                    self._driver.find_elements(By.CLASS_NAME, "thumbnail")
+                )
                 more_button = wait.until(
                     expected_conditions.element_to_be_clickable(
                         (By.CLASS_NAME, "btn-primary")
@@ -86,6 +90,10 @@ class PageScraper:
                 self._driver.execute_script(
                     "arguments[0].click();", more_button
                 )
+                wait.until(
+                    lambda d: len(d.find_elements(By.CLASS_NAME, "thumbnail"))
+                    > current_count
+                )
             except Exception:
                 break
 
@@ -93,10 +101,9 @@ class PageScraper:
         products = []
         for card in self._driver.find_elements(By.CLASS_NAME, "thumbnail"):
             products.append(self._parse_card(card))
-
         return products
 
-    def _parse_card(self, card: webdriver) -> Product:
+    def _parse_card(self, card: WebElement) -> Product:
         title = card.find_element(
             By.CLASS_NAME, "title"
         ).get_attribute("title").strip()
@@ -106,15 +113,15 @@ class PageScraper:
         ).text.strip()
 
         price_text = card.find_element(By.CLASS_NAME, "price").text.strip()
-        price = float(price_text.replace("$", ""))
+        price = price_text.replace("$", "")
 
-        rating = len(card.find_elements(By.CLASS_NAME, "ws-icon-star"))
+        rating = str(len(card.find_elements(
+            By.CSS_SELECTOR, ".ratings span.ws-icon-star"
+        )))
 
-        num_of_reviews = int(
-            card.find_element(
-                By.CSS_SELECTOR, "span[itemprop='reviewCount']"
-            ).text.strip()
-        )
+        num_of_reviews = card.find_element(
+            By.CSS_SELECTOR, "span[itemprop='reviewCount']"
+        ).text.strip()
 
         return Product(
             title=title,
@@ -133,15 +140,13 @@ class ProductRepository:
             writer = csv.writer(csv_file)
             writer.writerow([f.name for f in fields(Product)])
             for product in products:
-                writer.writerow(
-                    [
-                        product.title,
-                        product.description,
-                        product.price,
-                        product.rating,
-                        product.num_of_reviews,
-                    ]
-                )
+                writer.writerow([
+                    product.title,
+                    product.description,
+                    product.price,
+                    product.rating,
+                    product.num_of_reviews,
+                ])
 
 
 class EcommerceCrawler:
